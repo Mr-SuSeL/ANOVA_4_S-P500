@@ -157,7 +157,6 @@ ggcorrplot::ggcorrplot(corr,
 )
 
 ## ----------------- REGRESSION MODEL ------------------------------------------
-# Info source: https://rc2e.com/linearregressionandanova
 # Jaki sektor ma istotny statystycznie udział w EBITDA...
 fit.ebit <- lm(
   formula = ebitda ~ market_cap + pe + ps + eps + sector +
@@ -177,6 +176,97 @@ car::vif(fit.ebit)
 #div_yield  1.80  1            1.34
 #pb         1.05  1            1.03
 # stopa dywidendy prowadzi
+
+# diagnostic charts plot
+plot(x = fit.ebit, col = stocks$color, pch = 20, which = 1:6)
+names(fit.ebit)
+# Residuals:
+plot(fit.ebit$residuals)
+# Q-Q Residuals:
+plot(x = fit.ebit, col = stocks$color, pch = 20, which = 2)
+#hist(fit.ebit$fitted.values)
+
+## Boxplot
+boxplot(x = stocks$ebitda, ylab = "EBITDA")
+
+## Q-Q EBITDA graph
+# Rozkład międzykwartylowy
+qqnorm(y = stocks$ebitda, col = stocks$color, pch = 20, ylab = "EBITDA")
+qqline(y = stocks$ebitda, lty = 2, col = 2)
+
+## -------------- power transformations - transformata potęgowa ----------------
+# Info source: https://rc2e.com/linearregressionandanova
+stocks2 <- stocks
+# Count number of negative values in market_cap.
+nrow(stocks2[stocks2$market_cap<0,])
+
+# Check powerTransform() on market_cap
+pt_marketCap <- car::powerTransform(
+  object = market_cap ~ 1, data = stocks2)
+summary(pt_marketCap) # -0.33 Rounded power
+
+# Count number of negative, 0, and NA values
+nrow(stocks2[stocks2$pe < 0,]) # 13
+nrow(stocks2[stocks2$pe == 0,]) # 2
+
+# powerTransform() on pe
+pt_pe <- car::powerTransform(object = pe ~ 1, data = stocks2, family = "bcnPower")
+summary(object = pt_pe) #  0.191 rounded power now positive
+
+# powerTransform() on ps
+pt_ps <- car::powerTransform(object = ps ~ 1, data = stocks2)
+summary(object = pt_ps) #  (0 == log transformation)
+
+# powerTransform() on eps
+nrow(stocks2[stocks2$eps<0,]) # 51
+
+pt_eps <- car::powerTransform(object = eps ~ 1, data = stocks2, family = "bcnPower")
+summary(object = pt_eps) # 0.229 rounded power
+
+# powerTransform() on pb
+nrow(stocks2[stocks2$pb<0,]) #8
+
+#pt_pb <- car::powerTransform(object = pb ~ 1, data = stocks2, family = "bcnPower")
+pt_pb <- car::powerTransform(object = pb ~ 1, data = stocks2)
+summary(object = pt_pb) # <- -0.33 rounded power
+
+# powerTransform() on div_yield
+nrow(stocks2[stocks2$div_yield<0,])
+nrow(stocks2[stocks2$div_yield==0,]) # 86
+
+pt_div <- car::powerTransform(object = div_yield ~ 1, data = stocks2,
+  family = "bcnPower")
+summary(object = pt_div) # 0.5 rounded power
+
+# Build powerTransform() model on ebitda
+nrow(stocks[stocks$ebitda<0,]) # 9
+nrow(stocks[stocks$ebitda==0,]) # 58
+
+pt_ebit <- car::powerTransform(
+  object = ebitda ~ I(market_cap^-0.33) + I(pe^0.191) + log(ps) + 
+    I(eps^0.229) + I(div_yield^0.5) + I(pb^-0.33), data = stocks2,
+  family = "bcnPower")
+summary(object = pt_ebit) # r. power = 0 -> log
+
+## --------- New regression model with transformed data ------------------------
+new_fit <- lm(formula = ebitda ~ I(market_cap^-0.33) + I(pe^0.191) + log(ps) + 
+    I(eps^0.229) + sector + I(div_yield^0.5) + I(pb^-0.33), data = stocks)
+summary(new_fit)
+car::vif(new_fit)
+#                    GVIF Df GVIF^(1/(2*Df))
+#I(market_cap^-0.33) 1.32  1            1.15
+#I(pe^0.191)         1.82  1            1.35
+#log(ps)             1.95  1            1.40
+#I(eps^0.229)        1.23  1            1.11
+#sector              3.76 10            1.07
+#I(div_yield^0.5)    1.90  1            1.38
+#I(pb^-0.33)         1.77  1            1.33
+# tym razem najwyższa wartość dla ps (price-to-sell)
+
+
+
+
+
 
 
 
