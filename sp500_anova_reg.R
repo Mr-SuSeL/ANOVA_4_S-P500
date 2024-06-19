@@ -263,6 +263,43 @@ car::vif(new_fit)
 #I(pb^-0.33)         1.77  1            1.33
 # tym razem najwyższa wartość dla ps (price-to-sell)
 
+plot(
+  x = new_fit,
+  col = stocks$color,
+  pch = 20,
+  which = 1:6
+)
+
+na.sums <- colSums(is.na(stocks2))
+miss.vals <- data.frame(
+  na = na.sums
+)
+miss.vals
+# pe and pb
+
+# median imputancy
+sum(is.na(stocks2))
+
+stocks2$pe <- Hmisc::impute(stocks2$pe, median)
+stocks2$pb <- Hmisc::impute(stocks2$pb, median)
+str(stocks2)
+sum(is.na(stocks2$pb))
+# is.na(stocks2$pe)
+
+simple_fit <- lm(
+  formula = ebitda ~ market_cap + pe + ps +
+    eps + sector + div_yield,
+  data = stocks2
+)
+summary(simple_fit)
+car::vif(simple_fit)
+
+anova(simple_fit)
+
+
+
+
+
 
 
 
