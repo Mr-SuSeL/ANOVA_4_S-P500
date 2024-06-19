@@ -5,6 +5,10 @@ library(ggplot2)
 # install.packages("plotly")
 library(plotly)
 library(tidyverse)
+# install.packages("ggcorrplot")
+library(ggcorrplot)
+# install.packages("car") # to VIF
+library(car)
 
 
 # floating decimal points = 3
@@ -16,6 +20,8 @@ stocks <- read.csv(
   header = TRUE,
   stringsAsFactors = TRUE # to sector analysis.
 )
+
+# ----------------- cleaning data ----------------------------------------------
 
 head(stocks, n = 5)
 stocks <- subset(stocks, select = -SEC.Filings) # to remove col with links
@@ -59,6 +65,8 @@ t <- df %>%
              shape = 21, stroke = 3) + coord_flip() + xlab("") + theme_bw()
 t
 # IT bigger than Fin :)
+
+## ------------ understanding sector's data (charts)----------------------------
 
 ## Barplot of the sectors with the highest prices.
 # Order stock prices from lowest to highest.
@@ -115,8 +123,71 @@ ggplot(data = df.ebit.new, aes(x = sector, y = ebitda)) +
   geom_bar(stat="identity", fill = "#999999", color = "black") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle=55, vjust=0.5))
+# that's mean DEBT Economy :)
 
+# Custom colors.
+v_color <- viridis::viridis(n = nrow(stocks))
+stocks$color <- v_color[Matrix::invPerm(
+  p = order(
+    x = stocks$ebitda
+  )
+)]
+
+pairs(
+  formula = ebitda ~ pe + div_yield + eps + sector +
+    market_cap + ps + pb,
+  data = stocks,
+  pch = 20,
+  col = stocks$color
+)
+
+stocks.cor <- subset(stocks, select=-c(1,2,3,8,9,14))
+corr <- round(cor(stocks.cor), 2)
+corr
+
+# Correlation chart
+ggcorrplot::ggcorrplot(corr,
+                       type = "lower",
+                       lab = TRUE,
+                       lab_size = 3,
+                       method = "circle",
+                       colors = c("red", "yellow", "green"),
+                       title = "Correlation of Variables",
+                       ggtheme = theme_bw
+)
+
+## ----------------- REGRESSION MODEL ------------------------------------------
 # Info source: https://rc2e.com/linearregressionandanova
+# Jaki sektor ma istotny statystycznie udział w EBITDA...
+fit.ebit <- lm(
+  formula = ebitda ~ market_cap + pe + ps + eps + sector +
+    div_yield  + pb,
+  data = stocks
+)
+summary(fit.ebit)
+
+# VIF: Variance Inflation Factor from 'car' package
+car::vif(fit.ebit)
+#GVIF              Df         GVIF^(1/(2*Df))
+#market_cap 1.15  1            1.07
+#pe         1.11  1            1.05
+#ps         1.67  1            1.29
+#eps        1.16  1            1.08
+#sector     3.22 10            1.06
+#div_yield  1.80  1            1.34
+#pb         1.05  1            1.03
+# stopa dywidendy prowadzi
+
+
+
+
+
+
+
+
+
+
+
 
 
 
