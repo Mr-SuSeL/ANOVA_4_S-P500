@@ -1,3 +1,14 @@
+# Temat: które wielkości makroekonomiczne analizy fundamentalnej mają
+# statystycznie istotny wpływ na EBITDA akcji (obrót firmy) z indeksu S&P 500 
+# giełdy nowojorskiej: NYSE.
+# EBITDA (ang. earnings before interest, taxes, depreciation and amortization)
+# ebitda ~ market_cap (kapitalizacja rynkowa) + pe (price-to-earnings ratio) 
+# + ps (price-to-sell ratio) + eps (zysk na akcje) 
+# + sector (udział sektora w koszyku indeksu) +
+# div_yield (stopa dywidendy) + pb (cena na wartość księgowa)
+
+## Model regresji, VIF oraz ANOVA
+
 # Data source link: https://www.kaggle.com/datasets/paytonfisher/sp-500-companies-with-financial-information/data?select=financials.csv
 # dataset ends in July 2020
 library(dplyr) 
@@ -128,9 +139,7 @@ ggplot(data = df.ebit.new, aes(x = sector, y = ebitda)) +
 # Custom colors.
 v_color <- viridis::viridis(n = nrow(stocks))
 stocks$color <- v_color[Matrix::invPerm(
-  p = order(
-    x = stocks$ebitda
-  )
+  p = order(x = stocks$ebitda)
 )]
 
 pairs(
@@ -158,6 +167,20 @@ ggcorrplot::ggcorrplot(corr,
 
 ## ----------------- REGRESSION MODEL ------------------------------------------
 # Jaki sektor ma istotny statystycznie udział w EBITDA...
+
+sum(is.na(stocks)) #10
+na.sums <- colSums(is.na(stocks))
+na.sums
+stocks$pe
+stocks$pb
+# imputancy by median
+stocks$pe <- Hmisc::impute(stocks$pe, median)
+stocks$pb <- Hmisc::impute(stocks$pb, median)
+
+str(stocks)
+sum(is.na(stocks$pb))
+sum(is.na(stocks$pe))
+
 fit.ebit <- lm(
   formula = ebitda ~ market_cap + pe + ps + eps + sector +
     div_yield  + pb,
@@ -175,7 +198,10 @@ car::vif(fit.ebit)
 #sector     3.22 10            1.06
 #div_yield  1.80  1            1.34
 #pb         1.05  1            1.03
-# stopa dywidendy prowadzi
+# variable are rather not correlated (vif < 5)
+
+anova(fit.ebit)
+## -----------------------------------------------------------------------------
 
 # diagnostic charts plot
 plot(x = fit.ebit, col = stocks$color, pch = 20, which = 1:6)
@@ -194,165 +220,25 @@ boxplot(x = stocks$ebitda, ylab = "EBITDA")
 qqnorm(y = stocks$ebitda, col = stocks$color, pch = 20, ylab = "EBITDA")
 qqline(y = stocks$ebitda, lty = 2, col = 2)
 
-## -------------- power transformations - transformata potęgowa ----------------
-# Info source: https://rc2e.com/linearregressionandanova
-stocks2 <- stocks
-# Count number of negative values in market_cap.
-nrow(stocks2[stocks2$market_cap<0,])
+## metrics
+actual <- stocks$ebitda
+str(stocks$ebitda) # 505
+actual2 <- actual[1:495]
+predicted <- predict(fit.ebit)
 
-# Check powerTransform() on market_cap
-pt_marketCap <- car::powerTransform(
-  object = market_cap ~ 1, data = stocks2)
-summary(pt_marketCap) # -0.33 Rounded power
 
-# Count number of negative, 0, and NA values
-nrow(stocks2[stocks2$pe < 0,]) # 13
-nrow(stocks2[stocks2$pe == 0,]) # 2
-
-# powerTransform() on pe
-pt_pe <- car::powerTransform(object = pe ~ 1, data = stocks2, family = "bcnPower")
-summary(object = pt_pe) #  0.191 rounded power now positive
-
-# powerTransform() on ps
-pt_ps <- car::powerTransform(object = ps ~ 1, data = stocks2)
-summary(object = pt_ps) #  (0 == log transformation)
-
-# powerTransform() on eps
-nrow(stocks2[stocks2$eps<0,]) # 51
-
-pt_eps <- car::powerTransform(object = eps ~ 1, data = stocks2, family = "bcnPower")
-summary(object = pt_eps) # 0.229 rounded power
-
-# powerTransform() on pb
-nrow(stocks2[stocks2$pb<0,]) #8
-
-#pt_pb <- car::powerTransform(object = pb ~ 1, data = stocks2, family = "bcnPower")
-pt_pb <- car::powerTransform(object = pb ~ 1, data = stocks2)
-summary(object = pt_pb) # <- -0.33 rounded power
-
-# powerTransform() on div_yield
-nrow(stocks2[stocks2$div_yield<0,])
-nrow(stocks2[stocks2$div_yield==0,]) # 86
-
-pt_div <- car::powerTransform(object = div_yield ~ 1, data = stocks2,
-  family = "bcnPower")
-summary(object = pt_div) # 0.5 rounded power
-
-# Build powerTransform() model on ebitda
-nrow(stocks[stocks$ebitda<0,]) # 9
-nrow(stocks[stocks$ebitda==0,]) # 58
-
-pt_ebit <- car::powerTransform(
-  object = ebitda ~ I(market_cap^-0.33) + I(pe^0.191) + log(ps) + 
-    I(eps^0.229) + I(div_yield^0.5) + I(pb^-0.33), data = stocks2,
-  family = "bcnPower")
-summary(object = pt_ebit) # r. power = 0 -> log
-
-## --------- New regression model with transformed data ------------------------
-new_fit <- lm(formula = ebitda ~ I(market_cap^-0.33) + I(pe^0.191) + log(ps) + 
-    I(eps^0.229) + sector + I(div_yield^0.5) + I(pb^-0.33), data = stocks)
-summary(new_fit)
-car::vif(new_fit)
-#                    GVIF Df GVIF^(1/(2*Df))
-#I(market_cap^-0.33) 1.32  1            1.15
-#I(pe^0.191)         1.82  1            1.35
-#log(ps)             1.95  1            1.40
-#I(eps^0.229)        1.23  1            1.11
-#sector              3.76 10            1.07
-#I(div_yield^0.5)    1.90  1            1.38
-#I(pb^-0.33)         1.77  1            1.33
-# tym razem najwyższa wartość dla ps (price-to-sell)
-
-plot(
-  x = new_fit,
-  col = stocks$color,
-  pch = 20,
-  which = 1:6
+pred_frame <- data.frame(
+  actual = actual2,
+  predicted = predicted
 )
-
-na.sums <- colSums(is.na(stocks2))
-miss.vals <- data.frame(
-  na = na.sums
-)
-miss.vals
-# pe and pb
-
-# median imputancy
-sum(is.na(stocks2))
-
-stocks2$pe <- Hmisc::impute(stocks2$pe, median)
-stocks2$pb <- Hmisc::impute(stocks2$pb, median)
-str(stocks2)
-sum(is.na(stocks2$pb))
-# is.na(stocks2$pe)
-
-simple_fit <- lm(
-  formula = ebitda ~ market_cap + pe + ps +
-    eps + sector + div_yield,
-  data = stocks2
-)
-summary(simple_fit)
-car::vif(simple_fit)
-
-anova(simple_fit)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+pred_frame
+
+# install.packages('Metrics')
+library(Metrics)
+
+Metrics::rmse(actual2, predicted)
+Metrics::mse(actual2, predicted)
+Metrics::mae(actual2, predicted)
+range(stocks$ebitda) # niezadowalająco duży - 30%
 
 
