@@ -223,12 +223,16 @@ car::vif(fit.ebit)
 anova(fit.ebit)
 # Współliniowość akceptowalna, na granicy ze względnym brakiem współliniowości predyktorów
 ## -----------------------------------------------------------------------------
-AIC(fit.ebit) # Metoda krokowa optymalizacji Akaika
+AIC(fit.ebit) # Metryka Akaika
 # diagnostic charts plot
 plot(x = fit.ebit, col = stocks$color, pch = 20, which = 1:6)
-
 # Odległość Cook'a to wpływ danych przypadków na równanie regresji
 # - pokazuje outliery
+
+#install.packages("MASS")
+library(MASS)
+stepAIC(fit.ebit, direction="both") # Metoda krokowa optymalizacji Akaika
+
 
 names(fit.ebit)
 # Residuals:
