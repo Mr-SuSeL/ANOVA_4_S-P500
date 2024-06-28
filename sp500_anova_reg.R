@@ -11,6 +11,7 @@
 
 # Data source link: https://www.kaggle.com/datasets/paytonfisher/sp-500-companies-with-financial-information/data?select=financials.csv
 # dataset ends in July 2020
+
 library(dplyr) 
 library(ggplot2) 
 # install.packages("plotly")
@@ -100,6 +101,7 @@ ggplot(data = df.price, aes(x = sector, y = avg.price)) +
 ## Barplot of highest market cap.
 df.cap <- df[order(df$cap),]
 df.cap$sector <- factor(df.cap$sector, levels = df.cap$sector)
+df.cap$sector
 
 # telecom...
 ggplot(data = df.cap, aes(x = sector, y = cap)) +
@@ -110,6 +112,7 @@ ggplot(data = df.cap, aes(x = sector, y = cap)) +
 # Capitalisation without telecom
 df.cap.new <- subset(df.cap, sector != "Telecommunication Services")
 df.cap.new
+# telecom as outlier
 
 ggplot(data = df.cap.new, aes(x = sector, y = cap)) +
   geom_bar(stat="identity", fill = "#999999", color = "black") +
@@ -165,6 +168,8 @@ ggcorrplot::ggcorrplot(corr,
                        ggtheme = theme_bw
 )
 
+
+
 ## ----------------- REGRESSION MODEL ------------------------------------------
 # Jaki sektor ma istotny statystycznie udział w EBITDA...
 
@@ -180,6 +185,21 @@ stocks$pb <- Hmisc::impute(stocks$pb, median)
 str(stocks)
 sum(is.na(stocks$pb))
 sum(is.na(stocks$pe))
+
+# ---------- TEST ZAŁOŻEŃ ---------------
+# a) normalność rozkładu - test Shapiro - Wilka, qqplot, normalnośc rezyduów
+# b) równość wariancji
+# ---------------------------------------
+#Ad. a)
+# Test Shapiro - Wilka
+names(stocks)
+shapiro.test(stocks$price + stocks$pb + stocks$pe + stocks$div_yield + 
+               stocks$eps + stocks$market_cap)
+# OK, because p-value < 0.05
+# Gdyby jednak NIE były spełnione założenia to wynik ANOVY należałoby
+# porównać z testem nieparametrycznym Kruskalla - Wallisa
+
+
 
 fit.ebit <- lm(
   formula = ebitda ~ market_cap + pe + ps + eps + sector +
@@ -201,10 +221,15 @@ car::vif(fit.ebit)
 # variable are rather not correlated (vif < 5)
 
 anova(fit.ebit)
+# Współliniowość akceptowalna, na granicy ze względnym brakiem współliniowości predyktorów
 ## -----------------------------------------------------------------------------
-
+AIC(fit.ebit) # Metoda krokowa optymalizacji Akaika
 # diagnostic charts plot
 plot(x = fit.ebit, col = stocks$color, pch = 20, which = 1:6)
+
+# Odległość Cook'a to wpływ danych przypadków na równanie regresji
+# - pokazuje outliery
+
 names(fit.ebit)
 # Residuals:
 plot(fit.ebit$residuals)
@@ -223,22 +248,26 @@ qqline(y = stocks$ebitda, lty = 2, col = 2)
 ## metrics
 actual <- stocks$ebitda
 str(stocks$ebitda) # 505
-actual2 <- actual[1:495]
+actual2 <- actual#[1:495]
 predicted <- predict(fit.ebit)
 
 
 pred_frame <- data.frame(
   actual = actual2,
-  predicted = predicted
+  predicted = predicted#[1:495]
 )
 pred_frame
 
+# Metrics
 # install.packages('Metrics')
 library(Metrics)
 
 Metrics::rmse(actual2, predicted)
 Metrics::mse(actual2, predicted)
-Metrics::mae(actual2, predicted)
-range(stocks$ebitda) # niezadowalająco duży - 30%
+
+# Błąd odniesiony do mediany kapitalizacji rynkowej:
+Metrics::mae(actual2, predicted) # 1,8/21 = 8,5%
+
+range(stocks$ebitda) 
 
 
