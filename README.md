@@ -11,3 +11,4 @@ We are looking for macroeconomic factors which has influence to EBITDA for compa
 - step algo looking for best Akaik's metrics (aic with step from MASS package)
 - Cook's distance and other plots
 - one-way ANOVA report telling as which param has important influence for S&P500 price
+- Square R metric is 72,7% 

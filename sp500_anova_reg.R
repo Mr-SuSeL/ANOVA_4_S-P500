@@ -233,6 +233,8 @@ plot(x = fit.ebit, col = stocks$color, pch = 20, which = 1:6)
 library(MASS)
 stepAIC(fit.ebit, direction="both") # Metoda krokowa optymalizacji Akaika
 
+# Square R metrics is: 72,7%
+summary(fit.ebit)
 
 names(fit.ebit)
 # Residuals:
